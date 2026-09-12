@@ -64,12 +64,12 @@ void loop()
     lastTime = millis(); //Update the timer
     
     long latitude = myGNSS.getLatitude(); // latitude gives raw GPS reading (degrees *10^-7)
-    double actualLatitude = (double)latitude / 10000000.0 // divide by 10,000,000 to get lat readable by google maps
+    double actualLatitude = (double)latitude / 10000000.0; // divide by 10,000,000 to get lat readable by google maps
     Serial.print(F("Lat: "));
     Serial.print(actualLatitude, 6); // forces display of 6 decimals (or more)
 
     long longitude = myGNSS.getLongitude(); // longitude gives raw GPS reading (degrees *10^-7)
-    double actualLongitude = (double)longitude / 10000000.0 // divide by 10,000,000 to get long readable by google maps
+    double actualLongitude = (double)longitude / 10000000.0; // divide by 10,000,000 to get long readable by google maps
     Serial.print(F(" Long: "));
     Serial.print(actualLongitude, 6); // forces display of 6 decimals (or more)
     // Serial.print(F(" (degrees * 10^-7)")); this line isn't needed anymore
