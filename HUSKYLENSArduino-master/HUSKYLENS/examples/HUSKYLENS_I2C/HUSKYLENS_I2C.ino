@@ -27,8 +27,8 @@ void printResult(HUSKYLENSResult result);
 
 void setup() {
     Serial.begin(115200);
-    Wire.begin();
-    while (!huskylens.begin(Wire))
+    Wire1.begin();
+    while (!huskylens.begin(Wire1))
     {
         Serial.println(F("Begin failed!"));
         Serial.println(F("1.Please recheck the \"Protocol Type\" in HUSKYLENS (General Settings>>Protocol Type>>I2C)"));
