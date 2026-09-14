@@ -45,7 +45,6 @@ void printPositionGNSS();
 void setup() {
   Serial.begin(115200);
   Wire1.begin();
-  Wire.begin();  // from GNSS code, check if this is correct
 
   // Set up HuskyLens
   Serial.println("Setting up HuskyLens...");
@@ -59,7 +58,7 @@ void setup() {
   // Set up GNSS
   Serial.println("Setting up GNSS...");
   //myGNSS.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
-  while (!myGNSS.begin())  // Connect to the u-blox module using Wire port (check if it actually should be Wire and not Wire1)
+  while (!myGNSS.begin(Wire1))
   {
     Serial.println(F("u-blox GNSS not detected at default I2C address. Please check wiring."));
     delay(3000);
