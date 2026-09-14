@@ -101,6 +101,7 @@ void loop()
   }
   if (num_hot_pixels > 25) //If the count of hot pixels exceeds 25...
     Serial.println("hot!!"); //declare it hot
+    
 // communicate with the husky to confirm/deny a fire
   Serial.println(num_hot_pixels); 
   delay(500);
