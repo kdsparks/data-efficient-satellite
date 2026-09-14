@@ -2,16 +2,27 @@
   Code adapted from:
   ***************************************************
  HUSKYLENS An Easy-to-use AI Machine Vision Sensor
- <https://www.dfrobot.com/product-1922.html>
+  <https://www.dfrobot.com/product-1922.html>
  
- This example shows the basic function of library for HUSKYLENS via I2c.
+  This example shows the basic function of library for HUSKYLENS via I2c.
  
- Created 2020-03-13
- By [Angelo qiao](Angelo.qiao@dfrobot.com)
+  Created 2020-03-13
+  By [Angelo qiao](Angelo.qiao@dfrobot.com)
  
- GNU Lesser General Public License.
- See <http://www.gnu.org/licenses/> for details.
- All above must be included in any redistribution
+  GNU Lesser General Public License.
+  See <http://www.gnu.org/licenses/> for details.
+  All above must be included in any redistribution
+ ****************************************************
+ Reading lat and long via UBX binary commands - no more NMEA parsing!
+  By: Nathan Seidle
+  SparkFun Electronics
+  Date: January 3rd, 2019
+  License: MIT. See license file for more information but you can
+  basically do whatever you want with this code.
+
+  This example shows how to query a u-blox module for its lat/long/altitude. We also
+  turn off the NMEA output on the I2C port. This decreases the amount of I2C traffic 
+  dramatically.
  ****************************************************
  SparkFun BMI270 Arduino Library: Example01_BasicReadingsI2C
 */
@@ -19,17 +30,22 @@
 #include <Wire.h>
 #include "HUSKYLENS.h"
 #include "SparkFun_BMI270_Arduino_Library.h"
+#include <SparkFun_u-blox_GNSS_Arduino_Library.h>  // http://librarymanager/All#SparkFun_u-blox_GNSS
 
 HUSKYLENS huskylens;
+SFE_UBLOX_GNSS myGNSS;
 BMI270 imu;
 
+long lastTime = 0;                           // Simple local timer. Limits amount of I2C traffic to u-blox module
 uint8_t i2cAddressImu = BMI2_I2C_PRIM_ADDR;  // 0x68
 
-void printResult(HUSKYLENSResult result);
+void printResultHusky(HUSKYLENSResult result);
+void printPositionGNSS();
 
 void setup() {
   Serial.begin(115200);
   Wire1.begin();
+  Wire.begin();  // from GNSS code, check if this is correct
 
   // Set up HuskyLens
   Serial.println("Setting up HuskyLens...");
@@ -39,6 +55,17 @@ void setup() {
     Serial.println(F("2.Please recheck the connection."));
     delay(3000);
   }
+
+  // Set up GNSS
+  Serial.println("Setting up GNSS...");
+  //myGNSS.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
+  while (!myGNSS.begin())  // Connect to the u-blox module using Wire port (check if it actually should be Wire and not Wire1)
+  {
+    Serial.println(F("u-blox GNSS not detected at default I2C address. Please check wiring."));
+    delay(3000);
+  }
+  myGNSS.setI2COutput(COM_TYPE_UBX);                  // Set the I2C port to output UBX only (turn off NMEA noise)
+  myGNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);  //Save (only) the communications port settings to flash and BBR
 
   // Set up IMU
   Serial.println("Setting up IMU...");
@@ -63,16 +90,19 @@ void loop() {
     Serial.println(F("###########"));
     while (huskylens.available()) {
       HUSKYLENSResult result = huskylens.read();
-      printResult(result);
+      printResultHusky(result);
     }
   }
+
+  // Get position from GNSS
+  printPositionGNSS();
 
   // Get measurements from the IMU sensor. This must be called before accessing
   // the sensor data, otherwise it will never update
   imu.getSensorData();
 }
 
-void printResult(HUSKYLENSResult result) {
+void printResultHusky(HUSKYLENSResult result) {
   if (result.command == COMMAND_RETURN_BLOCK) {
     if (result.ID == 1) {
       Serial.println("Wildfire");
@@ -83,5 +113,34 @@ void printResult(HUSKYLENSResult result) {
     }
   } else {
     Serial.println("Object unknown!");
+  }
+}
+
+void printPositionGNSS() {
+  // Query module only every second. Doing it more often will just cause I2C traffic
+  // The module only responds when a new position is available
+  if (millis() - lastTime > 1000) {
+    lastTime = millis();  // Update the timer
+
+    long latitude = myGNSS.getLatitude();                   // latitude gives raw GPS reading (degrees * 10^-7)
+    double actualLatitude = (double)latitude / 10000000.0;  // divide by 10,000,000 to get lat readable by google maps
+    Serial.print(F("Lat: "));
+    Serial.print(actualLatitude, 6);  // forces display of 6 decimals (or more)
+
+    long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
+    double actualLongitude = (double)longitude / 10000000.0;  // divide by 10,000,000 to get long readable by google maps
+    Serial.print(F(" Long: "));
+    Serial.print(actualLongitude, 6);  // forces display of 6 decimals (or more)
+
+    long altitude = myGNSS.getAltitudeMSL();  // changed from getAltitude() to getAltitudeMSL()
+    Serial.print(F(" Alt: "));
+    Serial.print(altitude);
+    Serial.print(F(" (mm)"));
+
+    byte SIV = myGNSS.getSIV();
+    Serial.print(F(" SIV: "));
+    Serial.print(SIV);
+
+    Serial.println();
   }
 }
