@@ -20,6 +20,7 @@
  ****************************************************/
 
 #include "HUSKYLENS.h"
+#include "Wire.h"
 
 HUSKYLENS huskylens;
 //HUSKYLENS green line >> SDA; blue line >> SCL
@@ -54,11 +55,16 @@ void loop() {
 
 void printResult(HUSKYLENSResult result){
     if (result.command == COMMAND_RETURN_BLOCK){
-        Serial.println(String()+F("Block:xCenter=")+result.xCenter+F(",yCenter=")+result.yCenter+F(",width=")+result.width+F(",height=")+result.height+F(",ID=")+result.ID);
-    }
-    else if (result.command == COMMAND_RETURN_ARROW){
-        Serial.println(String()+F("Arrow:xOrigin=")+result.xOrigin+F(",yOrigin=")+result.yOrigin+F(",xTarget=")+result.xTarget+F(",yTarget=")+result.yTarget+F(",ID=")+result.ID);
-    }
+        if(result.ID == 1){
+        Serial.println("Wildfire");
+        }
+        else if(result.ID == 2){
+        Serial.println("Normal");  
+        }
+        else{
+        Serial.println("Defualt");
+        }
+     }
     else{
         Serial.println("Object unknown!");
     }
