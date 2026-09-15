@@ -41,11 +41,11 @@ void setup()
   while (!Serial); //Wait for user to open terminal
   Serial.println("SparkFun u-blox Example");
 
-  Wire.begin();
+  Wire1.begin();
 
   //myGNSS.enableDebugging(); // Uncomment this line to enable helpful debug messages on Serial
 
-  if (myGNSS.begin() == false) //Connect to the u-blox module using Wire port
+  if (myGNSS.begin(Wire1) == false) //Connect to the u-blox module using Wire port
   {
     Serial.println(F("u-blox GNSS not detected at default I2C address. Please check wiring. Freezing."));
     while (1);
