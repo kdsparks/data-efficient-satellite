@@ -36,7 +36,6 @@
   This example initializes the MLX90640 and outputs the 768 temperature values
   from the 768 pixels.
 */
-
 #include <Arduino.h>
 
 #include <Wire.h>
@@ -53,16 +52,20 @@ SFE_UBLOX_GNSS myGNSS;
 BMI270 imu;
 paramsMLX90640 mlx90640;
 
-long lastTime = 0;                           // Simple local timer. Limits amount of I2C traffic to u-blox module
 uint8_t i2cAddressImu = BMI2_I2C_PRIM_ADDR;  // 0x68
 const byte MLX90640_address = 0x33;          // Default 7-bit unshifted address of the MLX90640
 const int DATA_SIZE_IR = 32 * 24;            // Variable for number of pixels
 static float mlx90640To[768];
+const int MIN_HOT_PIXELS = 25;
+const int MIN_DEG_C = 35;
+bool isSmokeDetected = false;
+const int SMOKE_ID = 1;
 
-void printResultHusky(HUSKYLENSResult result);
+bool detectSmoke(HUSKYLENSResult result);
 void printPositionGNSS();
-boolean isConnectedMLX();
-void detectHeat();
+bool isConnectedMLX();
+int detectHeat();
+
 
 void setup() {
   Serial.begin(115200);
@@ -99,7 +102,7 @@ void setup() {
   }
   Serial.println("BMI270 connected!");
 
-  //Set up IR Array
+  // Set up IR Array
   Serial.println("Setting up IR Array...");
   while (!isConnectedMLX()) {
     Serial.println("MLX90640 not detected at default I2C address. Please check wiring.");
@@ -120,80 +123,75 @@ void setup() {
 }
 
 void loop() {
+  // Get measurements from the IMU sensor. This must be called before accessing
+  // the sensor data, otherwise it will never update
+  imu.getSensorData();
+
   // Get result from HuskyLens
   if (!huskylens.request()) Serial.println(F("Fail to request data from HUSKYLENS, recheck the connection!"));
   else if (!huskylens.isLearned()) Serial.println(F("Nothing learned, press learn button on HUSKYLENS to learn one!"));
   else if (!huskylens.available()) Serial.println(F("No block or arrow appears on the screen!"));
   else {
-    // Serial.println(F("###########"));
-    while (huskylens.available()) {
-      HUSKYLENSResult result = huskylens.read();
-      printResultHusky(result);
-    }
+    HUSKYLENSResult result = huskylens.read();
+    isSmokeDetected = detectSmoke(result);
   }
 
-  // Get position from GNSS
-  printPositionGNSS();
+  // Get result from IR Array
+  int numHotPixels = detectHeat();
 
-  // Get measurements from the IMU sensor. This must be called before accessing
-  // the sensor data, otherwise it will never update
-  imu.getSensorData();
+  if (isSmokeDetected && numHotPixels > MIN_HOT_PIXELS) {
+    Serial.println("Smoke and heat detected");
+    Serial.print("Number of hot pixels: ");
+    Serial.println(numHotPixels);
+    printPositionGNSS();
+  }
 
-  detectHeat();
+  delay(1000);
 }
 
-void printResultHusky(HUSKYLENSResult result) {
+bool detectSmoke(HUSKYLENSResult result) {
   if (result.command == COMMAND_RETURN_BLOCK) {
-    if (result.ID == 1) {
-      Serial.println("Wildfire");
-    } else if (result.ID == 2) {
-      Serial.println("Normal");
-    } else {
-      Serial.println("Default");
+    if (result.ID == SMOKE_ID) {
+      return true;
     }
-  } else {
-    Serial.println("Object unknown!");
   }
+  return false;
 }
 
+// Query module only every second. Doing it more often will just cause I2C traffic
+// Check the delay where this function is called to do so
 void printPositionGNSS() {
-  // Query module only every second. Doing it more often will just cause I2C traffic
-  // The module only responds when a new position is available
-  if (millis() - lastTime > 1000) {
-    lastTime = millis();  // Update the timer
+  long latitude = myGNSS.getLatitude();                   // latitude gives raw GPS reading (degrees * 10^-7)
+  double actualLatitude = (double)latitude / 10000000.0;  // divide by 10,000,000 to get lat readable by google maps
+  Serial.print(F("Lat: "));
+  Serial.print(actualLatitude, 6);  // forces display of 6 decimals (or more)
 
-    long latitude = myGNSS.getLatitude();                   // latitude gives raw GPS reading (degrees * 10^-7)
-    double actualLatitude = (double)latitude / 10000000.0;  // divide by 10,000,000 to get lat readable by google maps
-    Serial.print(F("Lat: "));
-    Serial.print(actualLatitude, 6);  // forces display of 6 decimals (or more)
+  long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
+  double actualLongitude = (double)longitude / 10000000.0;  // divide by 10,000,000 to get long readable by google maps
+  Serial.print(F(" Long: "));
+  Serial.print(actualLongitude, 6);  // forces display of 6 decimals (or more)
 
-    long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
-    double actualLongitude = (double)longitude / 10000000.0;  // divide by 10,000,000 to get long readable by google maps
-    Serial.print(F(" Long: "));
-    Serial.print(actualLongitude, 6);  // forces display of 6 decimals (or more)
+  long altitude = myGNSS.getAltitudeMSL();  // changed from getAltitude() to getAltitudeMSL()
+  Serial.print(F(" Alt: "));
+  Serial.print(altitude);
+  Serial.print(F(" (mm)"));
 
-    long altitude = myGNSS.getAltitudeMSL();  // changed from getAltitude() to getAltitudeMSL()
-    Serial.print(F(" Alt: "));
-    Serial.print(altitude);
-    Serial.print(F(" (mm)"));
+  byte SIV = myGNSS.getSIV();
+  Serial.print(F(" SIV: "));
+  Serial.print(SIV);
 
-    byte SIV = myGNSS.getSIV();
-    Serial.print(F(" SIV: "));
-    Serial.print(SIV);
-
-    Serial.println();
-  }
+  Serial.println();
 }
 
 // Returns true if the MLX90640 is detected on the I2C bus
-boolean isConnectedMLX() {
+bool isConnectedMLX() {
   Wire1.beginTransmission((uint8_t)MLX90640_address);
   if (Wire1.endTransmission() != 0)
-    return (false);  //Sensor did not ACK
+    return (false);  // Sensor did not ACK
   return (true);
 }
 
-void detectHeat() {
+int detectHeat() {
   // Get Temps from IR Array
   for (byte x = 0; x < 2; x++)  // Read both subpages
   {
@@ -217,14 +215,9 @@ void detectHeat() {
 
   for (int x = 0; x < DATA_SIZE_IR; x++) {
     float pixel_temp = mlx90640To[x];  // Reads temps of all 768 pixels
-    if (pixel_temp > 35)               // If the temp of a pixel is greater than 35C...
+    if (pixel_temp > MIN_DEG_C)        // If the temp of a pixel is greater than the threshold...
       num_hot_pixels++;                // ...add it to the count of hot pixels
   }
-  if (num_hot_pixels > 25)    // If the count of hot pixels exceeds 25...
-    Serial.println("hot!!");  // declare it hot
 
-  // communicate with the husky to confirm/deny a fire
-  Serial.print("Numer of hot pixels: ");
-  Serial.println(num_hot_pixels);
-  delay(500);
+  return num_hot_pixels;
 }

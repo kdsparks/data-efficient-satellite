@@ -17,4 +17,4 @@ uint8_t* husky_lens_protocol_write_begin(uint8_t command){
 }
 ```
 
-`send_buffer` is a `uin8_t[]` and thus is already `uint8_t*`
+`send_buffer` is a `uint8_t[]` and thus is already `uint8_t*`
