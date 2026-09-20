@@ -142,6 +142,31 @@ void loop() {
     Serial.print("Number of hot pixels: ");
     Serial.println(numHotPixels);
     printPositionGNSS();
+    // Print acceleration data
+    Serial.print("Accel in g's");
+    Serial.print("\t");
+    Serial.print("X: ");
+    Serial.print(imu.data.accelX, 3);
+    Serial.print("\t");
+    Serial.print("Y: ");
+    Serial.print(imu.data.accelY, 3);
+    Serial.print("\t");
+    Serial.print("Z: ");
+    Serial.print(imu.data.accelZ, 3);
+
+    Serial.print("\t");
+
+    // Print rotation data
+    Serial.print("Rotation in deg/sec");
+    Serial.print("\t");
+    Serial.print("X: ");
+    Serial.print(imu.data.gyroX, 3);
+    Serial.print("\t");
+    Serial.print("Y: ");
+    Serial.print(imu.data.gyroY, 3);
+    Serial.print("\t");
+    Serial.print("Z: ");
+    Serial.println(imu.data.gyroZ, 3);
   }
 
   delay(1000);
