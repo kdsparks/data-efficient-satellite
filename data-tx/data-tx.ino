@@ -85,15 +85,18 @@ const int MIN_DEG_C = 35;
 bool isSmokeDetected = false;
 const int SMOKE_ID = 1;
 const int TX_PIN = 16;
+const int WPM = 10;
 
 bool detectSmoke(HUSKYLENSResult result);
 void sendPositionGNSS();
+void sendAccelData();
+void sendGyroData();
 bool isConnectedMLX();
 int detectHeat();
 void txActiveAction();
 void txNoActiveAction();
 
-CWLibrary cw = CWLibrary(10, txActiveAction, txNoActiveAction);
+CWLibrary cw = CWLibrary(WPM, txActiveAction, txNoActiveAction);
 
 void setup() {
   Serial.begin(115200);
@@ -109,6 +112,7 @@ void setup() {
     Serial.println(F("2.Please recheck the connection."));
     delay(3000);
   }
+  Serial.println("HuskyLens connected!");
 
   // Set up GNSS
   Serial.println("Setting up GNSS...");
@@ -119,6 +123,7 @@ void setup() {
   }
   myGNSS.setI2COutput(COM_TYPE_UBX);                  // Set the I2C port to output UBX only (turn off NMEA noise)
   myGNSS.saveConfigSelective(VAL_CFG_SUBSEC_IOPORT);  //Save (only) the communications port settings to flash and BBR
+  Serial.println("GNSS connected!");
 
   // Set up IMU
   Serial.println("Setting up IMU...");
@@ -130,7 +135,7 @@ void setup() {
     Serial.println("Error: BMI270 not connected, check wiring and I2C address!");
     delay(3000);
   }
-  Serial.println("BMI270 connected!");
+  Serial.println("IMU connected!");
 
   // Set up IR Array
   Serial.println("Setting up IR Array...");
@@ -138,7 +143,7 @@ void setup() {
     Serial.println("MLX90640 not detected at default I2C address. Please check wiring.");
     delay(3000);
   }
-  Serial.println("MLX90640 online!");
+  Serial.println("MLX90640 connected!");
 
   // Get device parameters for IR Array - We only have to do this once
   int status;
@@ -169,35 +174,17 @@ void loop() {
   // Get result from IR Array
   int numHotPixels = detectHeat();
 
+  // Potential wildfire detected
   if (isSmokeDetected && numHotPixels > MIN_HOT_PIXELS) {
     char alertPreamble[] = "??? WILDFIRE SAT/ POTENTIAL FIRE/ ";
     cw.sendMessage(alertPreamble);
     Serial.println(alertPreamble);
-    
+
     sendPositionGNSS();
+    sendAccelData();
+    sendGyroData();
 
-    // Send acceleration data
-    char accel[] = "/ ACCEL(G): ";
-    char x[] = "X: ";
-    char y[] = " Y: ";
-    char z[] = " Z: ";
-    char accelX[10], accelY[10], accelZ[10];
-    sprintf(accelX, "%f", imu.data.accelX);
-    sprintf(accelY, "%f", imu.data.accelY);
-    sprintf(accelZ, "%f", imu.data.accelZ);
-    char alertAccel[] = {*accel, *x, *accelX, *y, *accelY, *z, *accelZ};
-    cw.sendMessage(alertAccel);
-    Serial.println(alertAccel);
-
-    // Send rotation data
-    char rotat[] = "/ ROTAT(DEG/S): ";
-    char rotatX[10], rotatY[10], rotatZ[10];
-    sprintf(rotatX, "%f", imu.data.gyroX);
-    sprintf(rotatY, "%f", imu.data.gyroY);
-    sprintf(rotatZ, "%f", imu.data.gyroZ);
-    char alertRotat[] = {*rotat, *x, *rotatX, *y, *rotatY, *z, *rotatZ};
-    cw.sendMessage(alertRotat);
-    Serial.println(alertRotat);
+    Serial.println();
   }
 
   delay(1000);
@@ -218,7 +205,7 @@ void sendPositionGNSS() {
   // Send latitude
   long latitude = myGNSS.getLatitude();                   // latitude gives raw GPS reading (degrees * 10^-7)
   double actualLatitude = (double)latitude / 10000000.0;  // divide by 10,000,000 to get lat readable by google maps
-  
+
   char actualLat[10];
   sprintf(actualLat, "%f", actualLatitude);
   char lat[] = "LAT: ";
@@ -230,7 +217,7 @@ void sendPositionGNSS() {
   // Send longitude
   long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
   double actualLongitude = (double)longitude / 10000000.0;  // divide by 10,000,000 to get long readable by google maps
-  
+
   char actualLong[10];
   sprintf(actualLong, "%f", actualLongitude);
   char longi[] = " LONGI: ";
@@ -260,6 +247,60 @@ void sendPositionGNSS() {
   cw.sendMessage(measuredSiv);
   Serial.println(siv);
   Serial.println(measuredSiv);
+}
+
+void sendAccelData() {
+  char accel[] = "ACCEL(G): ";
+  char x[] = "X: ";
+  char y[] = " Y: ";
+  char z[] = " Z: ";
+  char accelX[10], accelY[10], accelZ[10];
+  sprintf(accelX, "%f", imu.data.accelX);
+  sprintf(accelY, "%f", imu.data.accelY);
+  sprintf(accelZ, "%f", imu.data.accelZ);
+
+  Serial.print(accel);
+  Serial.print(x);
+  Serial.print(accelX);
+  Serial.print(y);
+  Serial.print(accelY);
+  Serial.print(z);
+  Serial.println(accelZ);
+
+  cw.sendMessage(accel);
+  cw.sendMessage(x);
+  cw.sendMessage(accelX);
+  cw.sendMessage(y);
+  cw.sendMessage(accelY);
+  cw.sendMessage(z);
+  cw.sendMessage(accelZ);
+}
+
+void sendGyroData() {
+  char rotat[] = "/ ROTAT(DEG/S): ";
+  char x[] = "X: ";
+  char y[] = " Y: ";
+  char z[] = " Z: ";
+  char rotatX[10], rotatY[10], rotatZ[10];
+  sprintf(rotatX, "%f", imu.data.gyroX);
+  sprintf(rotatY, "%f", imu.data.gyroY);
+  sprintf(rotatZ, "%f", imu.data.gyroZ);
+
+  Serial.print(rotat);
+  Serial.print(x);
+  Serial.print(rotatX);
+  Serial.print(y);
+  Serial.print(rotatY);
+  Serial.print(z);
+  Serial.println(rotatY);
+
+  cw.sendMessage(rotat);
+  cw.sendMessage(x);
+  cw.sendMessage(rotatX);
+  cw.sendMessage(y);
+  cw.sendMessage(rotatY);
+  cw.sendMessage(z);
+  cw.sendMessage(rotatZ);
 }
 
 // Returns true if the MLX90640 is detected on the I2C bus
