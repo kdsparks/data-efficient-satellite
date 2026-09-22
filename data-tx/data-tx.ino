@@ -81,11 +81,11 @@ const byte MLX90640_address = 0x33;          // Default 7-bit unshifted address 
 const int DATA_SIZE_IR = 32 * 24;            // Variable for number of pixels
 static float mlx90640To[768];
 const int MIN_HOT_PIXELS = 25;
-const int MIN_DEG_C = 35;
+const int MIN_DEG_C = 30;
 bool isSmokeDetected = false;
 const int SMOKE_ID = 1;
 const int TX_PIN = 16;
-const int WPM = 10;
+const int WPM = 15;
 
 bool detectSmoke(HUSKYLENSResult result);
 void sendPositionGNSS();
@@ -177,8 +177,8 @@ void loop() {
   // Potential wildfire detected
   if (isSmokeDetected && numHotPixels > MIN_HOT_PIXELS) {
     char alertPreamble[] = "??? WILDFIRE SAT/ POTENTIAL FIRE/ ";
-    cw.sendMessage(alertPreamble);
     Serial.println(alertPreamble);
+    cw.sendMessage(alertPreamble);
 
     sendPositionGNSS();
     sendAccelData();
@@ -208,11 +208,11 @@ void sendPositionGNSS() {
 
   char actualLat[10];
   sprintf(actualLat, "%f", actualLatitude);
-  char lat[] = "LAT: ";
+  char lat[] = "LAT ";
+  Serial.print(lat);
+  Serial.print(actualLat);
   cw.sendMessage(lat);
   cw.sendMessage(actualLat);
-  Serial.println(lat);
-  Serial.println(actualLat);
 
   // Send longitude
   long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
@@ -220,37 +220,15 @@ void sendPositionGNSS() {
 
   char actualLong[10];
   sprintf(actualLong, "%f", actualLongitude);
-  char longi[] = " LONGI: ";
+  char longi[] = " LON ";
+  Serial.print(longi);
+  Serial.println(actualLong);
   cw.sendMessage(longi);
   cw.sendMessage(actualLong);
-  Serial.println(longi);
-  Serial.println(actualLong);
-
-  // Send altitude
-  long altitude = myGNSS.getAltitudeMSL();  // changed from getAltitude() to getAltitudeMSL()
-
-  char measuredAlt[10];
-  sprintf(measuredAlt, "%f", altitude);
-  char alt[] = " ALT(MM): ";
-  cw.sendMessage(alt);
-  cw.sendMessage(measuredAlt);
-  Serial.println(alt);
-  Serial.println(measuredAlt);
-
-  // Send SIV
-  byte SIV = myGNSS.getSIV();
-
-  char measuredSiv[10];
-  sprintf(measuredSiv, "%f", SIV);
-  char siv[] = " SIV: ";
-  cw.sendMessage(siv);
-  cw.sendMessage(measuredSiv);
-  Serial.println(siv);
-  Serial.println(measuredSiv);
 }
 
 void sendAccelData() {
-  char accel[] = "ACCEL(G): ";
+  char accel[] = "/ ACCEL(G) ";
   char x[] = "X: ";
   char y[] = " Y: ";
   char z[] = " Z: ";
@@ -277,7 +255,7 @@ void sendAccelData() {
 }
 
 void sendGyroData() {
-  char rotat[] = "/ ROTAT(DEG/S): ";
+  char rotat[] = "/ ROTAT(DEG/S) ";
   char x[] = "X: ";
   char y[] = " Y: ";
   char z[] = " Z: ";
