@@ -35,6 +35,30 @@
 
   This example initializes the MLX90640 and outputs the 768 temperature values
   from the 768 pixels.
+  ****************************************************
+ Name          : CWLed.ino
+  @author       : Roberto D'Amico (@Bobboteck)
+  Last modified : 22.09.2021
+  Revision      : 1.0.0
+ 
+  Modification History:
+  Date         Version     Modified By     Description
+  2021-09-22   1.0.0       Roberto D'Amico Code Example for CWLibrary that use Arduino Built-in led to send message
+  
+  The MIT License (MIT)
+ 
+  This file is part of the CWLibrary Project (https://github.com/bobboteck/CWLibrary).
+ 	Copyright (c) 2021 Roberto D'Amico (Bobboteck - https://bobboteck.github.io/).
+ 
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
 */
 
 #include <Wire.h>
@@ -43,6 +67,7 @@
 #include <SparkFun_u-blox_GNSS_Arduino_Library.h>  // http://librarymanager/All#SparkFun_u-blox_GNSS
 #include "MLX90640_API.h"
 #include "MLX90640_I2C_Driver.h"
+#include "CWLibrary.hpp"
 
 #define TA_SHIFT 8  // Default shift for MLX90640 in open air
 
@@ -59,15 +84,22 @@ const int MIN_HOT_PIXELS = 25;
 const int MIN_DEG_C = 35;
 bool isSmokeDetected = false;
 const int SMOKE_ID = 1;
+const int TX_PIN = 16;
 
 bool detectSmoke(HUSKYLENSResult result);
-void printPositionGNSS();
+void sendPositionGNSS();
 bool isConnectedMLX();
 int detectHeat();
+void txActiveAction();
+void txNoActiveAction();
+
+CWLibrary cw = CWLibrary(10, txActiveAction, txNoActiveAction);
 
 void setup() {
   Serial.begin(115200);
   Wire1.begin();
+
+  pinMode(TX_PIN, OUTPUT);
 
   // Set up HuskyLens
   Serial.println("Setting up HuskyLens...");
@@ -138,35 +170,34 @@ void loop() {
   int numHotPixels = detectHeat();
 
   if (isSmokeDetected && numHotPixels > MIN_HOT_PIXELS) {
-    Serial.println("Smoke and heat detected");
-    Serial.print("Number of hot pixels: ");
-    Serial.println(numHotPixels);
-    printPositionGNSS();
-    // Print acceleration data
-    Serial.print("Accel in g's");
-    Serial.print("\t");
-    Serial.print("X: ");
-    Serial.print(imu.data.accelX, 3);
-    Serial.print("\t");
-    Serial.print("Y: ");
-    Serial.print(imu.data.accelY, 3);
-    Serial.print("\t");
-    Serial.print("Z: ");
-    Serial.print(imu.data.accelZ, 3);
+    char alertPreamble[] = "??? WILDFIRE SAT/ POTENTIAL FIRE/ ";
+    cw.sendMessage(alertPreamble);
+    Serial.println(alertPreamble);
+    
+    sendPositionGNSS();
 
-    Serial.print("\t");
+    // Send acceleration data
+    char accel[] = "/ ACCEL(G): ";
+    char x[] = "X: ";
+    char y[] = " Y: ";
+    char z[] = " Z: ";
+    char accelX[10], accelY[10], accelZ[10];
+    sprintf(accelX, "%f", imu.data.accelX);
+    sprintf(accelY, "%f", imu.data.accelY);
+    sprintf(accelZ, "%f", imu.data.accelZ);
+    char alertAccel[] = {*accel, *x, *accelX, *y, *accelY, *z, *accelZ};
+    cw.sendMessage(alertAccel);
+    Serial.println(alertAccel);
 
-    // Print rotation data
-    Serial.print("Rotation in deg/sec");
-    Serial.print("\t");
-    Serial.print("X: ");
-    Serial.print(imu.data.gyroX, 3);
-    Serial.print("\t");
-    Serial.print("Y: ");
-    Serial.print(imu.data.gyroY, 3);
-    Serial.print("\t");
-    Serial.print("Z: ");
-    Serial.println(imu.data.gyroZ, 3);
+    // Send rotation data
+    char rotat[] = "/ ROTAT(DEG/S): ";
+    char rotatX[10], rotatY[10], rotatZ[10];
+    sprintf(rotatX, "%f", imu.data.gyroX);
+    sprintf(rotatY, "%f", imu.data.gyroY);
+    sprintf(rotatZ, "%f", imu.data.gyroZ);
+    char alertRotat[] = {*rotat, *x, *rotatX, *y, *rotatY, *z, *rotatZ};
+    cw.sendMessage(alertRotat);
+    Serial.println(alertRotat);
   }
 
   delay(1000);
@@ -183,27 +214,52 @@ bool detectSmoke(HUSKYLENSResult result) {
 
 // Query module only every second. Doing it more often will just cause I2C traffic
 // Check the delay where this function is called to do so
-void printPositionGNSS() {
+void sendPositionGNSS() {
+  // Send latitude
   long latitude = myGNSS.getLatitude();                   // latitude gives raw GPS reading (degrees * 10^-7)
   double actualLatitude = (double)latitude / 10000000.0;  // divide by 10,000,000 to get lat readable by google maps
-  Serial.print(F("Lat: "));
-  Serial.print(actualLatitude, 6);  // forces display of 6 decimals (or more)
+  
+  char actualLat[10];
+  sprintf(actualLat, "%f", actualLatitude);
+  char lat[] = "LAT: ";
+  cw.sendMessage(lat);
+  cw.sendMessage(actualLat);
+  Serial.println(lat);
+  Serial.println(actualLat);
 
+  // Send longitude
   long longitude = myGNSS.getLongitude();                   // longitude gives raw GPS reading (degrees * 10^-7)
   double actualLongitude = (double)longitude / 10000000.0;  // divide by 10,000,000 to get long readable by google maps
-  Serial.print(F(" Long: "));
-  Serial.print(actualLongitude, 6);  // forces display of 6 decimals (or more)
+  
+  char actualLong[10];
+  sprintf(actualLong, "%f", actualLongitude);
+  char longi[] = " LONGI: ";
+  cw.sendMessage(longi);
+  cw.sendMessage(actualLong);
+  Serial.println(longi);
+  Serial.println(actualLong);
 
+  // Send altitude
   long altitude = myGNSS.getAltitudeMSL();  // changed from getAltitude() to getAltitudeMSL()
-  Serial.print(F(" Alt: "));
-  Serial.print(altitude);
-  Serial.print(F(" (mm)"));
 
+  char measuredAlt[10];
+  sprintf(measuredAlt, "%f", altitude);
+  char alt[] = " ALT(MM): ";
+  cw.sendMessage(alt);
+  cw.sendMessage(measuredAlt);
+  Serial.println(alt);
+  Serial.println(measuredAlt);
+
+  // Send SIV
   byte SIV = myGNSS.getSIV();
-  Serial.print(F(" SIV: "));
-  Serial.print(SIV);
 
-  Serial.println();
+  char measuredSiv[10];
+  sprintf(measuredSiv, "%f", SIV);
+  char siv[] = " SIV: ";
+  cw.sendMessage(siv);
+  cw.sendMessage(measuredSiv);
+  Serial.println(siv);
+  Serial.println(measuredSiv);
 }
 
 // Returns true if the MLX90640 is detected on the I2C bus
@@ -243,4 +299,12 @@ int detectHeat() {
   }
 
   return num_hot_pixels;
+}
+
+void txActiveAction() {
+  analogWrite(TX_PIN, 225);
+}
+
+void txNoActiveAction() {
+  analogWrite(TX_PIN, 0);
 }
